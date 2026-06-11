@@ -26,7 +26,7 @@ src/
 ├── screens/
 │   ├── auth/           # LoginScreen, OTPScreen
 │   ├── user/           # HomeScreen, SOSScreen, TrackingScreen
-│   │                   # HistoryScreen, ProfileScreen, ReviewScreen
+│   ├── common/         # HistoryScreen, ProfileScreen, ReviewScreen
 │   ├── mechanic/       # (TODO) app dành cho thợ
 │   └── admin/          # (TODO) quản trị
 ├── components/
