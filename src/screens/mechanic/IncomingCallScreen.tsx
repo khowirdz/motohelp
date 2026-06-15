@@ -1,47 +1,69 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Vibration } from 'react-native';
 import socketService from '../../services/socketService';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setCurrentOrder } from '../../store/slices/orderSlice';
+import { RootState } from '../../store';
 
 export default function IncomingCallScreen({ route, navigation }: any) {
   const { order } = route.params;
   const dispatch = useDispatch();
+  
+  // Lấy thông tin người thợ đang đăng nhập từ Redux
+  const mechanic = useSelector((state: RootState) => state.auth.user);
+  
   const [countdown, setCountdown] = useState(30); // 30 giây đếm ngược nhận đơn
 
   useEffect(() => {
+    // Rung điện thoại báo hiệu có cuốc khẩn cấp (Rung 400ms, nghỉ 400ms, lặp lại)
+    Vibration.vibrate([400, 400, 400, 400]);
+
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          navigation.goBack(); // Tự động đóng nếu hết thời gian
+          navigation.goBack(); // Tự động đóng nếu hết thời gian hoặc thợ khác đã nhận
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      Vibration.cancel(); // Tắt rung khi thoát màn hình
+    };
   }, []);
 
   const handleAccept = () => {
-    // Phát tín hiệu đồng ý cứu hộ lên server qua Socket.io
-    socketService.emit('accept_order', { orderId: order.id });
+    // 1. Dừng đếm ngược và tắt rung
+    Vibration.cancel();
+
+    // 2. Phát tín hiệu đồng ý cứu hộ lên server, CẦN gửi kèm mechanicId để server biết ai nhận
+    socketService.emit('accept_order', { 
+      orderId: order.id,
+      mechanicId: mechanic?.id 
+    });
+    
+    // 3. Lưu đơn hàng vào Redux để hiển thị ở màn hình tiếp theo
     dispatch(setCurrentOrder(order));
     
     Alert.alert('Thành công', 'Bạn đã nhận cuốc xe này!', [
-      { text: 'Đến điểm hẹn', onPress: () => navigation.navigate('MechanicTracking') }
+      // Đảm bảo tên route 'MechanicTrackingScreen' khớp với cấu hình trong navigation của bạn
+      { text: 'Đến điểm hẹn', onPress: () => navigation.replace('MechanicTracking') }
     ]);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.alertTitle}>⚠️ YÊU CẦU CỨU HỘ KHẨN CẤP!</Text>
+      <Text style={styles.alertTitle}>⚠️ YÊU CẦU CỨU HỘ!</Text>
       <Text style={styles.countdownText}>Thời gian phản hồi còn lại: {countdown}s</Text>
 
       <View style={styles.infoBox}>
         <Text style={styles.infoLabel}>Sự cố: <Text style={styles.infoValue}>{order.issueType}</Text></Text>
         <Text style={styles.infoLabel}>Mô tả: <Text style={styles.infoValue}>{order.description || 'Không có mô tả'}</Text></Text>
-        <Text style={styles.infoLabel}>Giá ước tính: <Text style={styles.priceValue}>{order.priceEstimate.toLocaleString('vi-VN')} Đ</Text></Text>
+        <Text style={styles.infoLabel}>
+          Giá ước tính: <Text style={styles.priceValue}>{order?.priceEstimate?.toLocaleString('vi-VN')} Đ</Text>
+        </Text>
       </View>
 
       <View style={styles.btnGroup}>

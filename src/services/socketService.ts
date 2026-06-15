@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-// Đảm bảo IP này giống với BASE_URL ở file api.ts
+// ĐÃ SỬA: Xóa chữ /api ở đuôi. Trỏ trực tiếp vào cổng 3000.
 const SOCKET_URL = 'http://192.168.0.105:3000';
 
 class SocketService {
@@ -19,6 +19,11 @@ class SocketService {
 
       this.socket.on('disconnect', () => {
         console.log('Socket disconnected');
+      });
+
+      // THÊM ĐOẠN NÀY VÀO ĐỂ BẮT LỖI TẬN GỐC
+      this.socket.on('connect_error', (error) => {
+        console.log('❌ LỖI KẾT NỐI SOCKET TỪ ĐIỆN THOẠI:', error.message);
       });
     }
   }
@@ -49,5 +54,4 @@ class SocketService {
   }
 }
 
-// Export duy nhất 1 instance để dùng chung toàn app
 export default new SocketService();
