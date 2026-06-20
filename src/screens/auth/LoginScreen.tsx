@@ -91,7 +91,7 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>MotoCứu 🛠️</Text>
+      <Text style={styles.logo}>MotoHelp 🛠️</Text>
       <Text style={styles.subTitle}>Ứng dụng cứu hộ xe máy khẩn cấp</Text>
 
       <TextInput
