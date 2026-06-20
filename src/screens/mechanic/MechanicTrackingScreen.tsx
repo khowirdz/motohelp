@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View, Linking } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View, Linking, Platform } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from '../../hooks/useLocation';
@@ -15,7 +15,7 @@ export default function MechanicTrackingScreen({ navigation }: any) {
   const user = useSelector((state: RootState) => state.auth.user);
   
   const mapRef = useRef<MapView>(null);
-  const [isUpdating, setIsUpdating] = useState(false); // Trạng thái chống bấm đúp
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // 1. Luồng bắn tọa độ liên tục (Radar)
   useEffect(() => {
@@ -50,7 +50,6 @@ export default function MechanicTrackingScreen({ navigation }: any) {
     const socket = socketService.socket || socketService;
 
     const handleNewMessageAlert = (newMessage: any) => {
-      // Nếu đúng đơn hàng này VÀ người gửi không phải là mình
       if (newMessage.orderId === currentOrder.id && newMessage.senderId !== user.id) {
         Alert.alert(
           '💬 Tin nhắn từ Khách hàng', 
@@ -69,35 +68,47 @@ export default function MechanicTrackingScreen({ navigation }: any) {
 
   // Hàm gọi điện thoại trực tiếp
   const handleCallUser = () => {
-    // Giả sử dữ liệu trả về có phone, nếu chưa có thì để tạm số mặc định
-    // Thêm (currentOrder as any) vào trước dấu chấm hỏi
-  const phoneNumber = (currentOrder as any)?.userPhone || '0988888888';
+    const phoneNumber = (currentOrder as any)?.userPhone || '0988888888';
     Linking.openURL(`tel:${phoneNumber}`).catch(() => {
       Alert.alert('Lỗi', 'Thiết bị của bạn không hỗ trợ gọi điện thoại.');
     });
   };
 
+  // 🔥 TÍNH NĂNG MỚI: Mở ứng dụng bản đồ ngoài (Google Maps / Apple Maps) để dẫn đường giọng nói
+  const openExternalMap = () => {
+    if (!currentOrder) return;
+    const { latitude, longitude } = currentOrder.userLocation;
+    const url = Platform.select({
+      ios: `maps:0,0?q=${latitude},${longitude}`,
+      android: `google.navigation:q=${latitude},${longitude}`
+    });
+    Linking.openURL(url!).catch(() => Alert.alert('Lỗi', 'Không thể mở ứng dụng bản đồ.'));
+  };
+
   const updateStatus = async (status: 'ARRIVED' | 'COMPLETED') => {
     if (!currentOrder || isUpdating) return;
     
-    setIsUpdating(true); // Khóa nút bấm lại
+    setIsUpdating(true);
     try {
-      // 1. Cập nhật Database
       const updated = await orderService.updateOrderStatus(currentOrder.id, status);
       dispatch(setCurrentOrder(updated));
       
-      // 2. Bắn tín hiệu sang cho điện thoại Khách
       socketService.emit('mechanic_status_updated', { orderId: currentOrder.id, status });
       
       if (status === 'COMPLETED') {
         dispatch(setCurrentOrder(null));
         Alert.alert('Thành công', 'Chúc mừng bạn đã hoàn thành cuốc xe!');
-        navigation.replace('MechanicHome'); // Nhớ chỉnh lại tên Route trang chủ của thợ cho chuẩn
+        
+        // 🔥 ĐÃ FIX LỖI ĐIỀU HƯỚNG: Dùng reset thay cho replace để đảm bảo an toàn tuyệt đối 100%
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MechanicHome' }]
+        });
       }
     } catch {
       Alert.alert('Lỗi', 'Không thể cập nhật trạng thái. Vui lòng kiểm tra mạng!');
     } finally {
-      setIsUpdating(false); // Mở khóa nút bấm
+      setIsUpdating(false);
     }
   };
 
@@ -128,8 +139,8 @@ export default function MechanicTrackingScreen({ navigation }: any) {
         
         <Polyline
           coordinates={[location, currentOrder.userLocation]}
-          strokeColor="#e74c3c"
-          strokeWidth={3}
+          strokeColor="#0084ff" // Đổi sang màu xanh cho giống màu vẽ đường đi
+          strokeWidth={4}
           lineDashPattern={[10, 10]} 
         />
       </MapView>
@@ -141,21 +152,21 @@ export default function MechanicTrackingScreen({ navigation }: any) {
         </Text>
 
         <View style={styles.actionRow}>
-          {/* Nút Gọi Điện và Nhắn Tin chia đôi phần trên */}
+          {/* Thêm nút Dẫn đường vào bộ 3 nút thao tác nhanh */}
           <View style={styles.contactRow}>
             <TouchableOpacity style={styles.callBtn} onPress={handleCallUser}>
-              <Text style={styles.btnText}>📞 Gọi khách</Text>
+              <Text style={styles.btnText}>📞 Gọi</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity
-              style={styles.chatBtn}
-              onPress={() => navigation.navigate('Chat', { orderId: currentOrder.id })}
-            >
-              <Text style={styles.btnText}>💬 Nhắn tin</Text>
+            <TouchableOpacity style={styles.chatBtn} onPress={() => navigation.navigate('Chat', { orderId: currentOrder.id })}>
+              <Text style={styles.btnText}>💬 Chat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.navBtn} onPress={openExternalMap}>
+              <Text style={styles.btnText}>🧭 Đường</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Nút Trạng thái nằm phía dưới cho to và dễ bấm khi đi xe */}
           <TouchableOpacity 
             style={[
               styles.statusBtn, 
@@ -191,12 +202,13 @@ const styles = StyleSheet.create({
   issueText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 6 },
   priceText: { fontSize: 16, color: '#2ecc71', fontWeight: 'bold', marginBottom: 16 },
   actionRow: { display: 'flex', flexDirection: 'column', gap: 12 },
-  contactRow: { flexDirection: 'row', gap: 10 },
+  contactRow: { flexDirection: 'row', gap: 8 },
   callBtn: { flex: 1, backgroundColor: '#27ae60', padding: 12, borderRadius: 8, alignItems: 'center' },
   chatBtn: { flex: 1, backgroundColor: '#0084ff', padding: 12, borderRadius: 8, alignItems: 'center' },
+  navBtn:  { flex: 1, backgroundColor: '#f39c12', padding: 12, borderRadius: 8, alignItems: 'center' }, // Style nút dẫn đường mới
   statusBtn: { padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 4 },
-  arrivedBtn: { backgroundColor: '#f39c12' },
-  doneBtn: { backgroundColor: '#e74c3c' }, // Đỏ rực rỡ để báo hiệu kết thúc
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  arrivedBtn: { backgroundColor: '#34495e' }, // Chuyển màu để nổi bật sự chuyên nghiệp
+  doneBtn: { backgroundColor: '#e74c3c' }, 
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   statusBtnText: { color: '#fff', fontWeight: '900', fontSize: 16, textTransform: 'uppercase' },
 });

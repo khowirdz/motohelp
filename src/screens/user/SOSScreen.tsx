@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, 
   KeyboardAvoidingView, Platform, ScrollView 
@@ -6,21 +6,37 @@ import {
 import { ISSUE_TYPES } from '../../constants';
 import apiClient from '../../services/api';
 import socketService from '../../services/socketService';
-import { useDispatch, useSelector } from 'react-redux'; // 🔥 Bổ sung useSelector
+import { useDispatch, useSelector } from 'react-redux';
 import { setCurrentOrder } from '../../store/slices/orderSlice';
-import { RootState } from '../../store'; // 🔥 Bổ sung RootState để lấy type cho Redux
+import { RootState } from '../../store';
+import { Ionicons } from '@expo/vector-icons'; // 🔥 Import thêm icon để làm dấu tích xanh
 
 export default function SOSScreen({ route, navigation }: any) {
-  const { userLocation } = route.params;
+  // Lấy thêm preSelectedIssue từ màn hình Home truyền sang
+  const { location: userLocation, issueType: preSelectedIssue } = route.params || {};
   const dispatch = useDispatch();
-  
-  // 🔥 LẤY THÔNG TIN TÀI KHOẢN KHÁCH HÀNG TỪ REDUX
   const user = useSelector((state: RootState) => state.auth.user);
 
-  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  // Khởi tạo state với giá trị mặc định là lỗi được truyền từ Home sang
+  const [selectedIssue, setSelectedIssue] = useState<string | null>(preSelectedIssue || null);
   const [basePrice, setBasePrice] = useState<number>(0);
   const [description, setDescription] = useState('');
   const [issubmitting, setIsSubmitting] = useState(false);
+
+  // Bật kết nối Socket ngay khi vừa mở màn hình SOS
+  useEffect(() => {
+    socketService.connect();
+  }, []);
+
+  // Tự động lấy giá tiền của lỗi nếu được chọn sẵn từ Home
+  useEffect(() => {
+    if (preSelectedIssue) {
+      const issueDetails = ISSUE_TYPES.find(item => item.id === preSelectedIssue);
+      if (issueDetails) {
+        setBasePrice(issueDetails.price);
+      }
+    }
+  }, [preSelectedIssue]);
 
   const handleSelectIssue = (id: string, price: number) => {
     setSelectedIssue(id);
@@ -35,13 +51,15 @@ export default function SOSScreen({ route, navigation }: any) {
 
     setIsSubmitting(true);
     try {
-      // 1. Gửi request tạo đơn hàng lên Backend kèm theo Số Điện Thoại
+      // Gửi request tạo đơn hàng lên Backend
       const response = await apiClient.post('/orders/create', {
+        userId: user?.id,
+        userName: user?.name,
         issueType: selectedIssue,
         description: description,
         userLocation: userLocation,
         priceEstimate: basePrice, 
-        userPhone: user?.phoneNumber, // 🔥 KẸP SỐ ĐIỆN THOẠI VÀO ĐÂY ĐỂ GỬI CHO THỢ
+        userPhone: user?.phoneNumber,
       });
 
       const newOrder = response.data.order;
@@ -49,10 +67,10 @@ export default function SOSScreen({ route, navigation }: any) {
 
       console.log('📡 [App Khách] Chuẩn bị phát sóng SOS cho đơn:', newOrder.id);
 
-      // 2. Bắn tín hiệu phòng cứu hộ qua WebSocket
+      // Bắn tín hiệu phòng cứu hộ qua WebSocket
       socketService.emit('create_rescue_room', { orderId: newOrder.id, location: userLocation });
 
-      // 3. Chuyển sang màn hình Tracking
+      // Chuyển sang màn hình Tracking
       navigation.navigate('Tracking', { orderId: newOrder.id });
       
     } catch (error: any) {
@@ -72,7 +90,7 @@ export default function SOSScreen({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 20 }}
       >
-        <Text style={styles.title}>Chọn sự cố xe gặp phải</Text>
+        <Text style={styles.title}>Xác nhận sự cố</Text>
 
         <View style={{ marginBottom: 10 }}>
           {ISSUE_TYPES.map((item) => {
@@ -82,24 +100,32 @@ export default function SOSScreen({ route, navigation }: any) {
                 key={item.id}
                 style={[styles.issueCard, isSelected && styles.selectedCard]}
                 onPress={() => handleSelectIssue(item.id, item.price)}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.issueLabel, isSelected && styles.selectedText]}>
-                  {item.label}
-                </Text>
-                {item.price > 0 && (
-                  <Text style={styles.priceHint}>
-                    Giá sàn: {item.price.toLocaleString('vi-VN')} Đ
+                <View>
+                  <Text style={[styles.issueLabel, isSelected && styles.selectedText]}>
+                    {item.label}
                   </Text>
+                  {item.price > 0 && (
+                    <Text style={styles.priceHint}>
+                      Giá sàn: {item.price.toLocaleString('vi-VN')} Đ
+                    </Text>
+                  )}
+                </View>
+
+                {/* 🔥 HIỆU ỨNG NỔI BẬT: Thêm dấu tích xanh khi được chọn */}
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={24} color="#0084FF" />
                 )}
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={styles.subTitle}>Mô tả thêm (Không bắt buộc)</Text>
+        <Text style={styles.subTitle}>Mô tả chi tiết tình trạng (Không bắt buộc)</Text>
         <TextInput
           style={styles.input}
-          placeholder="Ví dụ: Xe Wave Alpha bị cán đinh vít, cần vá săm gấp..."
+          placeholder="Ví dụ: Xe dắt bị nặng bánh, nghi bị lủng xăm..."
           value={description}
           onChangeText={setDescription}
           multiline
@@ -112,7 +138,7 @@ export default function SOSScreen({ route, navigation }: any) {
           disabled={issubmitting}
         >
           <Text style={styles.submitBtnText}>
-            {issubmitting ? 'ĐANG GỬI YÊU CẦU...' : 'XÁC NHẬN GỌI THỢ'}
+            {issubmitting ? 'ĐANG ĐIỀU PHỐI THỢ...' : 'XÁC NHẬN GỌI THỢ'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -121,38 +147,66 @@ export default function SOSScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 60 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20 },
-  subTitle: { fontSize: 16, fontWeight: 'bold', color: '#555', marginTop: 10, marginBottom: 10 },
+  container: { flex: 1, backgroundColor: '#F9FAFB', padding: 20, paddingTop: 60 }, // Nền sáng hơn một chút
+  title: { fontSize: 24, fontWeight: '900', color: '#1F2937', marginBottom: 20 },
+  subTitle: { fontSize: 15, fontWeight: '700', color: '#4B5563', marginTop: 10, marginBottom: 10 },
+  
+  // Style mặc định của thẻ sự cố
   issueCard: {
+    backgroundColor: '#FFF',
     padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderRadius: 14, // Bo góc mềm mại hơn
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
     marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1, // Đổ bóng nhẹ cho thẻ mặc định
   },
-  selectedCard: { borderColor: '#ff4d4d', backgroundColor: '#fff5f5' },
-  issueLabel: { fontSize: 16, color: '#333' },
-  selectedText: { color: '#ff4d4d', fontWeight: 'bold' },
-  priceHint: { fontSize: 14, color: '#2ecc71', fontWeight: '600' },
+  
+  // 🔥 HIỆU ỨNG NỔI BẬT: Style khi thẻ được chọn
+  selectedCard: { 
+    borderColor: '#0084FF', 
+    backgroundColor: '#F0F8FF', // Nền xanh nhạt chuẩn UI/UX
+    borderWidth: 2, // Viền đậm hơn để gây chú ý
+    elevation: 4,
+    shadowColor: '#0084FF', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 6
+  },
+  
+  issueLabel: { fontSize: 16, color: '#374151', fontWeight: '600' },
+  selectedText: { color: '#0084FF', fontWeight: '800' },
+  priceHint: { fontSize: 14, color: '#10B981', fontWeight: '700', marginTop: 4 }, // Màu xanh lá nổi bật giá tiền
+  
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    padding: 16,
     textAlignVertical: 'top',
     fontSize: 15,
     marginBottom: 30,
-    minHeight: 80, 
+    minHeight: 100, 
+    color: '#1F2937'
   },
   submitBtn: {
-    backgroundColor: '#ff4d4d',
-    paddingVertical: 16,
-    borderRadius: 8,
+    backgroundColor: '#FF4D4D',
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#FF4D4D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6
   },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
 });

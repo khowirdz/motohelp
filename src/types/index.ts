@@ -1,47 +1,64 @@
-// Định nghĩa cấu trúc tọa độ GPS
+// src/types/index.ts
+// Thêm ChatMessage vào file types hiện có của bạn
+
 export interface LocationData {
   latitude: number;
   longitude: number;
 }
 
-// Tách riêng các trạng thái thành Type độc lập để dễ quản lý và tái sử dụng
 export type UserRole = 'user' | 'mechanic' | 'admin';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
 
-// Định nghĩa cấu trúc tài khoản người dùng chung
 export interface User {
   id: string;
   phoneNumber: string;
   name?: string;
   role: UserRole;
+  avatar?: string;
 }
 
-// Định nghĩa cấu trúc riêng cho thợ sửa xe (Đối tác)
 export interface Mechanic {
   id: string;
   name: string;
   phoneNumber: string;
   location: LocationData;
   rating: number;
+  totalReviews?: number;
   avatar?: string;
 }
 
-// Định nghĩa cấu trúc của một đơn hàng cứu hộ
 export interface Order {
   id: string;
   userId: string;
-  userPhone?: string;      // Thêm dòng này: Để Thợ có thể bấm gọi Khách
-  userName?: string;       // Thêm dòng này: Để Thợ biết tên Khách
-  
-  mechanicId?: string;     // Có thể null nếu chưa có thợ nhận
-  mechanicPhone?: string;  // Thêm dòng này: Để Khách có thể bấm gọi Thợ
-  mechanicName?: string;   // Thêm dòng này: Để Khách biết tên Thợ
-  
+  userPhone?: string;
+  userName?: string;
+  mechanicId?: string;
+  mechanicPhone?: string;
+  mechanicName?: string;
   issueType: string;
   description?: string;
-  status: OrderStatus;     // Sử dụng type OrderStatus đã tách ở trên cho gọn
+  status: OrderStatus;
   userLocation: LocationData;
   priceEstimate: number;
   createdAt: string;
-  updatedAt?: string;      // Thêm dòng này: Để biết đơn hàng cập nhật trạng thái lúc mấy giờ
+  updatedAt?: string;
+  licensePlate?: string;
+}
+
+// ✅ FIX: Thêm ChatMessage — đây là type bị thiếu gây lỗi ts(2305)
+export interface ChatMessage {
+  _id: string;
+  orderId: string;
+  text: string;
+  senderId: string;
+  senderName?: string;
+  createdAt: string;
+  // sending = đang gửi, sent = lên server, delivered = đối phương nhận, read = đã đọc
+  status: 'sending' | 'sent' | 'delivered' | 'read';
+  type: 'text' | 'image' | 'system';
+}
+
+export interface TypingStatus {
+  userId: string;
+  isTyping: boolean;
 }

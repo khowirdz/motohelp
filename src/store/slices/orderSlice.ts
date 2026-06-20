@@ -24,6 +24,7 @@ interface Order {
   userLocation: LocationData;
   priceEstimate: number;
   createdAt: string;
+  licensePlate?: string;
 }
 
 interface OrderState {

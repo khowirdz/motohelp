@@ -4,6 +4,7 @@ interface User {
   id: string;
   phoneNumber: string;
   name?: string;
+  licensePlate?: string;
   role: 'user' | 'mechanic' | 'admin';
 }
 

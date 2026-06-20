@@ -1,4 +1,5 @@
 import { Dimensions } from 'react-native';
+export const GOOGLE_API_KEY = 'ĐIỀN_API_KEY_THẬT_CỦA_BẠN_VÀO_ĐÂY';
 
 // Lấy kích thước màn hình thiết bị
 const { width, height } = Dimensions.get('window');

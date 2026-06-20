@@ -1,14 +1,18 @@
+// src/store/index.ts
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from './slices/authSlice';
+import authReducer  from './slices/authSlice';
 import orderReducer from './slices/orderSlice';
+import chatReducer  from './slices/chatSlice'; // ← THÊM DÒNG NÀY
 
 export const store = configureStore({
   reducer: {
-    auth: authReducer,
+    auth:  authReducer,
     order: orderReducer,
+    chat:  chatReducer,  // ← THÊM DÒNG NÀY
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({ serializableCheck: false }),
 });
 
-// Định nghĩa kiểu dữ liệu cho toàn bộ State và Dispatch của App
-export type RootState = ReturnType<typeof store.getState>;
+export type RootState   = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

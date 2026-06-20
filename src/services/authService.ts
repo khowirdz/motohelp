@@ -16,7 +16,8 @@ export const authService = {
 
   // Cập nhật thông tin profile
   updateProfile: async (userId: string, data: Partial<User>) => {
-    const response = await apiClient.put(`/auth/profile/${userId}`, data);
+    // Sửa từ '/auth/profile/...' thành '/users/profile/...'
+    const response = await apiClient.put(`/users/profile/${userId}`, data);
     return response.data;
   },
 };
